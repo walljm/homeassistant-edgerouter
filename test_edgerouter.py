@@ -116,8 +116,8 @@ def test_dhcp_leases(api: EdgeRouterAPI) -> list:
     try:
         leases = api.get_dhcp_leases()
         rows = [
-            [l["ip"], l["mac"], l.get("hostname") or "", l.get("expires") or ""]
-            for l in leases
+            [lease["ip"], lease["mac"], lease.get("hostname") or "", lease.get("expires") or ""]
+            for lease in leases
         ]
         print_table(["IP Address", "MAC Address", "Hostname", "Expires"], rows)
         print(f"\n  Total DHCP leases: {len(leases)}")
@@ -143,7 +143,7 @@ def test_all_clients(api: EdgeRouterAPI) -> None:
 
             rows.append([
                 client.ip or "",
-                client.mac,
+                mac,
                 client.hostname or "",
                 client.interface or "",
                 ", ".join(status),
@@ -159,11 +159,78 @@ def test_all_clients(api: EdgeRouterAPI) -> None:
         dhcp_count = sum(1 for c in clients.values() if c.has_dhcp_lease)
         both_count = sum(1 for c in clients.values() if c.in_arp and c.has_dhcp_lease)
 
-        print(f"\n  Summary:")
+        print("\n  Summary:")
         print(f"    Total unique clients: {len(clients)}")
         print(f"    In ARP table (connected): {arp_count}")
         print(f"    Have DHCP lease: {dhcp_count}")
         print(f"    Both ARP and DHCP: {both_count}")
+
+    except Exception as e:
+        print(f"  ❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def test_home_assistant_devices(api: EdgeRouterAPI, host: str) -> None:
+    """Show how devices will appear in Home Assistant."""
+    print_header("Home Assistant Device Preview")
+
+    try:
+        system_info = api.get_system_info()
+        clients = api.get_all_clients()
+
+        # Router device
+        print("\n  ┌─────────────────────────────────────────────────────────┐")
+        print("  │  ROUTER DEVICE (Parent)                                 │")
+        print("  ├─────────────────────────────────────────────────────────┤")
+        print(f"  │  Name:         EdgeRouter ({host})")
+        print("  │  Manufacturer: Ubiquiti")
+        print(f"  │  Model:        {system_info.get('hw_model', 'EdgeRouter')}")
+        print(f"  │  SW Version:   {system_info.get('version', 'Unknown')}")
+        print(f"  │  Identifier:   (edgerouter, {host})")
+        print("  │")
+        print("  │  Entities:")
+        print(f"  │    • sensor.edgerouter_{host.replace('.', '_')}_connected_clients")
+        print(f"  │    • sensor.edgerouter_{host.replace('.', '_')}_arp_entries")
+        print(f"  │    • sensor.edgerouter_{host.replace('.', '_')}_dhcp_leases")
+        print("  └─────────────────────────────────────────────────────────┘")
+
+        # Client devices
+        print("\n  CLIENT DEVICES (Children - linked via router):")
+        print("  " + "─" * 59)
+
+        for mac, client in sorted(clients.items(), key=lambda x: x[1].name):
+            device_name = client.name
+            state = "home" if client.in_arp else "not_home"
+            state_icon = "🏠" if client.in_arp else "🚪"
+
+            # Connection type
+            if client.in_arp and client.has_dhcp_lease:
+                conn_type = "dhcp"
+            elif client.in_arp:
+                conn_type = "static"
+            else:
+                conn_type = "dhcp_inactive"
+
+            print(f"\n  ┌─ {device_name}")
+            print(f"  │  Connection:   (mac, {mac})")
+            print(f"  │  Via Device:   EdgeRouter ({host})")
+            print("  │")
+            print(f"  │  Entity: device_tracker.{device_name.lower().replace(' ', '_').replace('.', '_').replace(':', '_')}")
+            print(f"  │    State:      {state_icon} {state}")
+            print(f"  │    MAC:        {mac}")
+            if client.ip:
+                print(f"  │    IP:         {client.ip}")
+            if client.hostname and client.hostname != "?":
+                print(f"  │    Hostname:   {client.hostname}")
+            if client.interface:
+                print(f"  │    Interface:  {client.interface}")
+            print(f"  │    Conn Type:  {conn_type}")
+            print(f"  └{'─' * 58}")
+
+        print(f"\n  Total devices that will be created: {len(clients) + 1}")
+        print("    • 1 router device")
+        print(f"    • {len(clients)} tracked client devices")
 
     except Exception as e:
         print(f"  ❌ Error: {e}")
@@ -230,6 +297,7 @@ Examples:
     test_arp_table(api)
     test_dhcp_leases(api)
     test_all_clients(api)
+    test_home_assistant_devices(api, args.host)
 
     print_header("Test Complete")
     print("  ✅ All tests completed successfully!")

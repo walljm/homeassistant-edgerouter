@@ -99,19 +99,21 @@ class EdgeRouterDeviceTracker(CoordinatorEntity, ScannerEntity):
         self._entry_id = entry_id
         self._last_seen: datetime | None = client.last_seen
         self._router_device_info = router_device_info
+        self._host = router_device_info.get("identifiers", set()).copy().pop()[1] if router_device_info.get("identifiers") else entry_id
 
         # Create a device for each tracked client using MAC as connection identifier
         # This makes each tracked device appear as its own device in HA
         client_name = client.name if client.name and client.name != "?" else mac
+        self._client_name = client_name
         self._attr_device_info = DeviceInfo(
             connections={(CONNECTION_NETWORK_MAC, mac)},
             name=client_name,
-            via_device=(DOMAIN, entry_id),  # Link to router device
+            via_device=(DOMAIN, self._host),  # Link to router device
         )
 
         # Set entity properties
         self._attr_unique_id = f"{entry_id}_{mac.replace(':', '_')}"
-        self._attr_name = "Tracker"  # Entity name within the device
+        self._attr_name = None  # Use device name only
 
     @property
     def _client(self) -> ClientInfo | None:
@@ -193,11 +195,12 @@ class EdgeRouterDeviceTracker(CoordinatorEntity, ScannerEntity):
         if client:
             # Update device name if we got a hostname
             if client.hostname and client.hostname != "?":
-                if self._attr_device_info and self._attr_device_info.get("name") != client.hostname:
+                if self._client_name != client.hostname:
+                    self._client_name = client.hostname
                     self._attr_device_info = DeviceInfo(
                         connections={(CONNECTION_NETWORK_MAC, self._mac)},
                         name=client.hostname,
-                        via_device=(DOMAIN, self._entry_id),
+                        via_device=(DOMAIN, self._host),
                     )
             # Update last seen if in ARP
             if client.in_arp:
