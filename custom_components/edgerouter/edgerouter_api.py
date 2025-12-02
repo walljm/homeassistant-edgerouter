@@ -172,7 +172,7 @@ class EdgeRouterAPI:
 
         lines = output.strip().split("\n")
         in_data = False
-        
+
         for line in lines:
             # Skip headers and empty lines
             if not line.strip():
@@ -190,10 +190,10 @@ class EdgeRouterAPI:
                 ip = parts[0]
                 mac_pattern = r"([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}"
                 mac_match = re.search(mac_pattern, line)
-                
+
                 if mac_match:
                     mac = mac_match.group(0).lower().replace("-", ":")
-                    
+
                     # Try to extract hostname (usually last field or before pool name)
                     hostname = None
                     # Look for hostname after lease expiration
@@ -202,7 +202,7 @@ class EdgeRouterAPI:
                     if len(remaining_parts) >= 3:
                         # Skip date/time and pool name, hostname is often last
                         hostname = remaining_parts[-1] if remaining_parts[-1] != "?" else None
-                    
+
                     # Extract expiration info
                     expires = None
                     date_pattern = r"\d{4}/\d{2}/\d{2}"

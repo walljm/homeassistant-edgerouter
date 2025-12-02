@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    name: Release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Get version from tag
+        id: version
+        run: |
+          echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update manifest version
+        run: |
+          python -c "
+          import json
+          with open('custom_components/edgerouter/manifest.json', 'r') as f:
+              manifest = json.load(f)
+          manifest['version'] = '${{ steps.version.outputs.version }}'
+          with open('custom_components/edgerouter/manifest.json', 'w') as f:
+              json.dump(manifest, f, indent=2)
+          "
+
+      - name: Create release zip
+        run: |
+          cd custom_components
+          zip -r ../edgerouter.zip edgerouter -x "*.pyc" -x "*__pycache__*"
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: edgerouter.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
