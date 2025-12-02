@@ -9,8 +9,8 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -31,12 +31,12 @@ async def async_setup_entry(
     """Set up sensors for EdgeRouter."""
     data = hass.data[DOMAIN][config_entry.entry_id]
     coordinator: DataUpdateCoordinator = data["coordinator"]
-    host = config_entry.data[CONF_HOST]
+    device_info: DeviceInfo = data["device_info"]
 
     async_add_entities([
-        EdgeRouterConnectedClientsSensor(coordinator, config_entry.entry_id, host),
-        EdgeRouterArpClientsSensor(coordinator, config_entry.entry_id, host),
-        EdgeRouterDhcpLeasesSensor(coordinator, config_entry.entry_id, host),
+        EdgeRouterConnectedClientsSensor(coordinator, config_entry.entry_id, device_info),
+        EdgeRouterArpClientsSensor(coordinator, config_entry.entry_id, device_info),
+        EdgeRouterDhcpLeasesSensor(coordinator, config_entry.entry_id, device_info),
     ])
 
 
@@ -50,12 +50,12 @@ class EdgeRouterBaseSensor(CoordinatorEntity, SensorEntity):
         self,
         coordinator: DataUpdateCoordinator,
         entry_id: str,
-        host: str,
+        device_info: DeviceInfo,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._entry_id = entry_id
-        self._host = host
+        self._attr_device_info = device_info
 
 
 class EdgeRouterConnectedClientsSensor(EdgeRouterBaseSensor):
@@ -68,12 +68,12 @@ class EdgeRouterConnectedClientsSensor(EdgeRouterBaseSensor):
         self,
         coordinator: DataUpdateCoordinator,
         entry_id: str,
-        host: str,
+        device_info: DeviceInfo,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, entry_id, host)
+        super().__init__(coordinator, entry_id, device_info)
         self._attr_unique_id = f"{entry_id}_connected_clients"
-        self._attr_name = "Connected Clients"
+        self._attr_name = "Connected clients"
 
     @property
     def native_value(self) -> int:
@@ -116,12 +116,12 @@ class EdgeRouterArpClientsSensor(EdgeRouterBaseSensor):
         self,
         coordinator: DataUpdateCoordinator,
         entry_id: str,
-        host: str,
+        device_info: DeviceInfo,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, entry_id, host)
+        super().__init__(coordinator, entry_id, device_info)
         self._attr_unique_id = f"{entry_id}_arp_entries"
-        self._attr_name = "ARP Entries"
+        self._attr_name = "ARP entries"
 
     @property
     def native_value(self) -> int:
@@ -142,12 +142,12 @@ class EdgeRouterDhcpLeasesSensor(EdgeRouterBaseSensor):
         self,
         coordinator: DataUpdateCoordinator,
         entry_id: str,
-        host: str,
+        device_info: DeviceInfo,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, entry_id, host)
+        super().__init__(coordinator, entry_id, device_info)
         self._attr_unique_id = f"{entry_id}_dhcp_leases"
-        self._attr_name = "DHCP Leases"
+        self._attr_name = "DHCP leases"
 
     @property
     def native_value(self) -> int:

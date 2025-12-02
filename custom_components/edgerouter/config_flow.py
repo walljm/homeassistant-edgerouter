@@ -80,7 +80,7 @@ class EdgeRouterConfigFlow(ConfigFlow, domain=DOMAIN):
                 if result:
                     # Get system info for the title
                     info = await self.hass.async_add_executor_job(api.get_system_info)
-                    title = info.get("model", f"EdgeRouter {user_input[CONF_HOST]}")
+                    title = info.get("hw_model", f"EdgeRouter {user_input[CONF_HOST]}")
 
                     return self.async_create_entry(
                         title=title,

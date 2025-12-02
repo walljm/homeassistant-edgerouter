@@ -9,6 +9,7 @@ from homeassistant.components.device_tracker import SourceType
 from homeassistant.components.device_tracker.config_entry import ScannerEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -39,6 +40,7 @@ async def async_setup_entry(
     data = hass.data[DOMAIN][config_entry.entry_id]
     coordinator: DataUpdateCoordinator = data["coordinator"]
     consider_home: int = data["consider_home"]
+    device_info: DeviceInfo = data["device_info"]
 
     # Track known devices
     tracked_macs: set[str] = set()
@@ -59,6 +61,7 @@ async def async_setup_entry(
                         mac,
                         client,
                         consider_home,
+                        device_info,
                     )
                 )
 
@@ -87,6 +90,7 @@ class EdgeRouterDeviceTracker(CoordinatorEntity, ScannerEntity):
         mac: str,
         client: ClientInfo,
         consider_home: int,
+        device_info: DeviceInfo,
     ) -> None:
         """Initialize the device tracker."""
         super().__init__(coordinator)
@@ -94,6 +98,7 @@ class EdgeRouterDeviceTracker(CoordinatorEntity, ScannerEntity):
         self._consider_home = timedelta(seconds=consider_home)
         self._entry_id = entry_id
         self._last_seen: datetime | None = client.last_seen
+        self._attr_device_info = device_info
 
         # Set entity properties
         self._attr_unique_id = f"{entry_id}_{mac.replace(':', '_')}"

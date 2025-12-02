@@ -14,6 +14,7 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -58,11 +59,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Fetch initial data
     await coordinator.async_config_entry_first_refresh()
 
+    # Get system info for device registry
+    try:
+        system_info = await hass.async_add_executor_job(api.get_system_info)
+    except EdgeRouterConnectionError:
+        system_info = {}
+
+    device_info = DeviceInfo(
+        identifiers={(DOMAIN, host)},
+        name=f"EdgeRouter ({host})",
+        manufacturer="Ubiquiti",
+        model=system_info.get("hw_model", "EdgeRouter"),
+        sw_version=system_info.get("version", "Unknown"),
+        configuration_url=f"https://{host}",
+    )
+
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
         "coordinator": coordinator,
         "api": api,
         "consider_home": consider_home,
+        "device_info": device_info,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
