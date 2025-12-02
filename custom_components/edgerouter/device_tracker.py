@@ -9,7 +9,7 @@ from homeassistant.components.device_tracker import SourceType
 from homeassistant.components.device_tracker.config_entry import ScannerEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -40,7 +40,7 @@ async def async_setup_entry(
     data = hass.data[DOMAIN][config_entry.entry_id]
     coordinator: DataUpdateCoordinator = data["coordinator"]
     consider_home: int = data["consider_home"]
-    device_info: DeviceInfo = data["device_info"]
+    router_device_info: DeviceInfo = data["device_info"]
 
     # Track known devices
     tracked_macs: set[str] = set()
@@ -61,7 +61,7 @@ async def async_setup_entry(
                         mac,
                         client,
                         consider_home,
-                        device_info,
+                        router_device_info,
                     )
                 )
 
@@ -90,7 +90,7 @@ class EdgeRouterDeviceTracker(CoordinatorEntity, ScannerEntity):
         mac: str,
         client: ClientInfo,
         consider_home: int,
-        device_info: DeviceInfo,
+        router_device_info: DeviceInfo,
     ) -> None:
         """Initialize the device tracker."""
         super().__init__(coordinator)
@@ -98,11 +98,20 @@ class EdgeRouterDeviceTracker(CoordinatorEntity, ScannerEntity):
         self._consider_home = timedelta(seconds=consider_home)
         self._entry_id = entry_id
         self._last_seen: datetime | None = client.last_seen
-        self._attr_device_info = device_info
+        self._router_device_info = router_device_info
+
+        # Create a device for each tracked client using MAC as connection identifier
+        # This makes each tracked device appear as its own device in HA
+        client_name = client.name if client.name and client.name != "?" else mac
+        self._attr_device_info = DeviceInfo(
+            connections={(CONNECTION_NETWORK_MAC, mac)},
+            name=client_name,
+            via_device=(DOMAIN, entry_id),  # Link to router device
+        )
 
         # Set entity properties
         self._attr_unique_id = f"{entry_id}_{mac.replace(':', '_')}"
-        self._attr_name = client.name
+        self._attr_name = "Tracker"  # Entity name within the device
 
     @property
     def _client(self) -> ClientInfo | None:
@@ -182,9 +191,14 @@ class EdgeRouterDeviceTracker(CoordinatorEntity, ScannerEntity):
         """Handle updated data from the coordinator."""
         client = self._client
         if client:
-            # Update name if we got a hostname
-            if client.hostname and client.hostname != "?" and self._attr_name != client.hostname:
-                self._attr_name = client.hostname
+            # Update device name if we got a hostname
+            if client.hostname and client.hostname != "?":
+                if self._attr_device_info and self._attr_device_info.get("name") != client.hostname:
+                    self._attr_device_info = DeviceInfo(
+                        connections={(CONNECTION_NETWORK_MAC, self._mac)},
+                        name=client.hostname,
+                        via_device=(DOMAIN, self._entry_id),
+                    )
             # Update last seen if in ARP
             if client.in_arp:
                 self._last_seen = client.last_seen
