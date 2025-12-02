@@ -1,5 +1,9 @@
 # Ubiquiti EdgeRouter Integration for Home Assistant
 
+[![GitHub Release](https://img.shields.io/github/release/walljm/homeassistant-edgerouter.svg?style=flat-square)](https://github.com/walljm/homeassistant-edgerouter/releases)
+[![GitHub](https://img.shields.io/github/license/walljm/homeassistant-edgerouter.svg?style=flat-square)](LICENSE)
+[![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=flat-square)](https://hacs.xyz/docs/faq/custom_repositories)
+
 A custom Home Assistant integration to monitor connected clients on your Ubiquiti EdgeRouter via SSH. This integration does **not** require UniFi Controller - it connects directly to your EdgeRouter.
 
 ## Features
@@ -21,14 +25,15 @@ A custom Home Assistant integration to monitor connected clients on your Ubiquit
 
 1. Open HACS in Home Assistant
 2. Click the three dots menu → Custom repositories
-3. Add this repository URL and select "Integration" as the category
+3. Add `https://github.com/walljm/homeassistant-edgerouter` and select "Integration" as the category
 4. Search for "EdgeRouter" and install it
 5. Restart Home Assistant
 
 ### Manual Installation
 
-1. Copy the `custom_components/edgerouter` folder to your Home Assistant's `custom_components` directory
-2. Restart Home Assistant
+1. Download the latest release from [GitHub Releases](https://github.com/walljm/homeassistant-edgerouter/releases)
+2. Copy the `custom_components/edgerouter` folder to your Home Assistant's `custom_components` directory
+3. Restart Home Assistant
 
 ## Configuration
 
@@ -126,15 +131,38 @@ show interfaces
 show version
 ```
 
+## Testing
+
+Before installing in Home Assistant, you can test the connection to your EdgeRouter:
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the test script
+python test_edgerouter.py <router-ip> <username> <password>
+
+# Example
+python test_edgerouter.py 192.168.1.1 ubnt mypassword
+```
+
+The test script will verify connectivity and display your ARP table and DHCP leases.
+
 ## License
 
-MIT License - See LICENSE file for details.
+MIT License - See [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or submit a pull request.
+Contributions are welcome! Please open an issue or submit a pull request on [GitHub](https://github.com/walljm/homeassistant-edgerouter).
 
 ## Credits
 
 - Developed for Home Assistant integration with Ubiquiti EdgeOS routers
 - Uses [Paramiko](https://www.paramiko.org/) for SSH connectivity
+
+## Links
+
+- [GitHub Repository](https://github.com/walljm/homeassistant-edgerouter)
+- [Report an Issue](https://github.com/walljm/homeassistant-edgerouter/issues)
+- [Home Assistant Community](https://community.home-assistant.io/)

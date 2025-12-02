@@ -1,0 +1,59 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to EdgeRouter",
+        "description": "Enter the connection details for your Ubiquiti EdgeRouter.",
+        "data": {
+          "host": "Host",
+          "username": "Username",
+          "password": "Password",
+          "port": "SSH Port"
+        },
+        "data_description": {
+          "host": "IP address or hostname of your EdgeRouter",
+          "username": "SSH username (default: ubnt)",
+          "password": "SSH password",
+          "port": "SSH port (default: 22)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to EdgeRouter. Please check the host and port.",
+      "invalid_auth": "Invalid username or password.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This EdgeRouter is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EdgeRouter Options",
+        "description": "Configure the polling and presence detection settings.",
+        "data": {
+          "scan_interval": "Scan Interval (seconds)",
+          "consider_home": "Consider Home (seconds)"
+        },
+        "data_description": {
+          "scan_interval": "How often to poll the router for updates (10-300 seconds)",
+          "consider_home": "How long to consider a device as 'home' after it disappears from the network (0-600 seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "connected_clients": {
+        "name": "Connected Clients"
+      },
+      "arp_entries": {
+        "name": "ARP Entries"
+      },
+      "dhcp_leases": {
+        "name": "DHCP Leases"
+      }
+    }
+  }
+}
