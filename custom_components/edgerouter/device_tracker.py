@@ -5,8 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any
 
-from homeassistant.components.device_tracker import SourceType
-from homeassistant.components.device_tracker.config_entry import ScannerEntity
+from homeassistant.components.device_tracker import ScannerEntity, SourceType
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
@@ -18,12 +17,13 @@ from homeassistant.helpers.update_coordinator import (
 
 from .const import (
     ATTR_CONNECTION_TYPE,
-    ATTR_HOSTNAME,
     ATTR_INTERFACE,
-    ATTR_IP_ADDRESS,
-    ATTR_LAST_SEEN,
+    ATTR_IPV6_ADDRESS,
+    ATTR_IPV6_CONNECTION_TYPE,
+    ATTR_IPV6_DUID,
+    ATTR_IPV6_LEASE_ENDS,
+    ATTR_IPV6_LEASE_STATE,
     ATTR_LEASE_EXPIRES,
-    ATTR_MAC_ADDRESS,
     DOMAIN,
 )
 from .edgerouter_api import ClientInfo
@@ -49,13 +49,14 @@ async def async_setup_entry(
     def async_add_new_entities() -> None:
         """Add new device tracker entities."""
         new_entities = []
-        clients: dict[str, ClientInfo] = coordinator.data or {}
+        clients: dict[tuple[str, str], ClientInfo] = coordinator.data or {}
 
-        for mac, client in clients.items():
+        for (mac, _iface), client in clients.items():
+            if client.synthetic:
+                continue
             if mac not in tracked_macs:
-                tracked_macs.add(mac)
-                new_entities.append(
-                    EdgeRouterDeviceTracker(
+                try:
+                    entity = EdgeRouterDeviceTracker(
                         coordinator,
                         config_entry.entry_id,
                         mac,
@@ -63,7 +64,10 @@ async def async_setup_entry(
                         consider_home,
                         router_device_info,
                     )
-                )
+                    tracked_macs.add(mac)
+                    new_entities.append(entity)
+                except Exception:
+                    _LOGGER.exception("Failed to create device tracker for MAC %s", mac)
 
         if new_entities:
             _LOGGER.debug("Adding %d new device trackers", len(new_entities))
@@ -82,6 +86,19 @@ class EdgeRouterDeviceTracker(CoordinatorEntity, ScannerEntity):
     """Representation of an EdgeRouter tracked device."""
 
     _attr_has_entity_name = True
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device info, overriding ScannerEntity's minimal default."""
+        return self._attr_device_info
+
+    @property
+    def entity_registry_enabled_default(self) -> bool:
+        return True
+
+    @property
+    def entity_registry_visible_default(self) -> bool:
+        return True
 
     def __init__(
         self,
@@ -117,10 +134,16 @@ class EdgeRouterDeviceTracker(CoordinatorEntity, ScannerEntity):
 
     @property
     def _client(self) -> ClientInfo | None:
-        """Get the current client info."""
-        if self.coordinator.data:
-            return self.coordinator.data.get(self._mac)
-        return None
+        """Get the current client info, preferring the entry that has an ARP connection."""
+        data: dict[tuple[str, str], ClientInfo] = self.coordinator.data or {}
+        connected = next(
+            (c for (mac, _), c in data.items() if mac == self._mac and c.in_arp),
+            None,
+        )
+        return connected or next(
+            (c for (mac, _), c in data.items() if mac == self._mac),
+            None,
+        )
 
     @property
     def is_connected(self) -> bool:
@@ -161,30 +184,34 @@ class EdgeRouterDeviceTracker(CoordinatorEntity, ScannerEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
-        attrs = {
-            ATTR_MAC_ADDRESS: self._mac,
-        }
+        attrs: dict[str, Any] = {}
 
         client = self._client
         if client:
-            if client.ip:
-                attrs[ATTR_IP_ADDRESS] = client.ip
-            if client.hostname:
-                attrs[ATTR_HOSTNAME] = client.hostname
             if client.interface:
                 attrs[ATTR_INTERFACE] = client.interface
             if client.lease_expires:
                 attrs[ATTR_LEASE_EXPIRES] = client.lease_expires
-            if self._last_seen:
-                attrs[ATTR_LAST_SEEN] = self._last_seen.isoformat()
 
-            # Connection type indicator
-            if client.in_arp and client.has_dhcp_lease:
+            # IPv4 connection type: how the device is known to the router
+            if client.has_dhcp_lease:
                 attrs[ATTR_CONNECTION_TYPE] = "dhcp"
-            elif client.in_arp:
+            elif client.has_static_reservation:
                 attrs[ATTR_CONNECTION_TYPE] = "static"
-            elif client.has_dhcp_lease:
-                attrs[ATTR_CONNECTION_TYPE] = "dhcp_inactive"
+            elif client.in_arp:
+                attrs[ATTR_CONNECTION_TYPE] = "unknown"
+
+            # IPv6 attributes
+            if client.ipv6_addr:
+                attrs[ATTR_IPV6_ADDRESS] = client.ipv6_addr
+            if client.ipv6_connection_type:
+                attrs[ATTR_IPV6_CONNECTION_TYPE] = client.ipv6_connection_type
+            if client.ipv6_lease_state:
+                attrs[ATTR_IPV6_LEASE_STATE] = client.ipv6_lease_state
+            if client.ipv6_lease_ends:
+                attrs[ATTR_IPV6_LEASE_ENDS] = client.ipv6_lease_ends
+            if client.ipv6_duid:
+                attrs[ATTR_IPV6_DUID] = client.ipv6_duid
 
         return attrs
 

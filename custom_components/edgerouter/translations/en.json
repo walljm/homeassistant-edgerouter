@@ -8,19 +8,22 @@
           "host": "Host",
           "username": "Username",
           "password": "Password",
+          "ssh_key_path": "SSH Private Key Path",
           "port": "SSH Port"
         },
         "data_description": {
           "host": "IP address or hostname of your EdgeRouter",
           "username": "SSH username (default: ubnt)",
-          "password": "SSH password",
+          "password": "SSH password (leave blank if using a key)",
+          "ssh_key_path": "Path to SSH private key file (leave blank if using a password)",
           "port": "SSH port (default: 22)"
         }
       }
     },
     "error": {
       "cannot_connect": "Unable to connect to EdgeRouter. Please check the host and port.",
-      "invalid_auth": "Invalid username or password.",
+      "invalid_auth": "Authentication failed. Check your username, password, or key path.",
+      "auth_required": "Provide either a password or an SSH private key path.",
       "unknown": "An unexpected error occurred."
     },
     "abort": {

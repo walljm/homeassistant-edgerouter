@@ -22,6 +22,7 @@ from homeassistant.core import callback
 
 from .const import (
     CONF_CONSIDER_HOME,
+    CONF_SSH_KEY_PATH,
     DEFAULT_CONSIDER_HOME,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SSH_PORT,
@@ -43,7 +44,8 @@ def _get_schema(defaults: dict | None = None) -> vol.Schema:
         {
             vol.Required(CONF_HOST, default=defaults.get(CONF_HOST, "")): str,
             vol.Required(CONF_USERNAME, default=defaults.get(CONF_USERNAME, "ubnt")): str,
-            vol.Required(CONF_PASSWORD, default=defaults.get(CONF_PASSWORD, "")): str,
+            vol.Optional(CONF_PASSWORD, default=defaults.get(CONF_PASSWORD, "")): str,
+            vol.Optional(CONF_SSH_KEY_PATH, default=defaults.get(CONF_SSH_KEY_PATH, "")): str,
             vol.Optional(
                 CONF_PORT, default=defaults.get(CONF_PORT, DEFAULT_SSH_PORT)
             ): int,
@@ -63,39 +65,43 @@ class EdgeRouterConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # Check if already configured
-            await self.async_set_unique_id(user_input[CONF_HOST])
-            self._abort_if_unique_id_configured()
+            password = user_input.get(CONF_PASSWORD, "").strip()
+            key_path = user_input.get(CONF_SSH_KEY_PATH, "").strip()
 
-            # Test the connection
-            api = EdgeRouterAPI(
-                host=user_input[CONF_HOST],
-                username=user_input[CONF_USERNAME],
-                password=user_input[CONF_PASSWORD],
-                port=user_input.get(CONF_PORT, DEFAULT_SSH_PORT),
-            )
+            if not password and not key_path:
+                errors["base"] = "auth_required"
+            else:
+                # Check if already configured
+                await self.async_set_unique_id(user_input[CONF_HOST])
+                self._abort_if_unique_id_configured()
 
-            try:
-                result = await self.hass.async_add_executor_job(api.test_connection)
-                if result:
-                    # Get system info for the title
-                    info = await self.hass.async_add_executor_job(api.get_system_info)
-                    title = info.get("hw_model", f"EdgeRouter {user_input[CONF_HOST]}")
-
-                    return self.async_create_entry(
-                        title=title,
-                        data=user_input,
-                    )
-                else:
+            if not errors:
+                api = EdgeRouterAPI(
+                    host=user_input[CONF_HOST],
+                    username=user_input[CONF_USERNAME],
+                    password=password or None,
+                    port=user_input.get(CONF_PORT, DEFAULT_SSH_PORT),
+                    key_filename=key_path or None,
+                )
+                try:
+                    result = await self.hass.async_add_executor_job(api.test_connection)
+                    if result:
+                        info = await self.hass.async_add_executor_job(api.get_system_info)
+                        title = info.get("hw_model", f"EdgeRouter {user_input[CONF_HOST]}")
+                        return self.async_create_entry(title=title, data=user_input)
+                    else:
+                        errors["base"] = "cannot_connect"
+                except EdgeRouterAuthenticationError:
+                    errors["base"] = "invalid_auth"
+                except EdgeRouterConnectionError:
                     errors["base"] = "cannot_connect"
-
-            except EdgeRouterAuthenticationError:
-                errors["base"] = "invalid_auth"
-            except EdgeRouterConnectionError:
-                errors["base"] = "cannot_connect"
-            except Exception:  # pylint: disable=broad-except
-                _LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
+                except Exception:  # pylint: disable=broad-except
+                    _LOGGER.exception("Unexpected exception")
+                    errors["base"] = "unknown"
+                finally:
+                    # This api instance is only used for validation; the real one
+                    # created in async_setup_entry gets its own persistent connection.
+                    await self.hass.async_add_executor_job(api.close)
 
         return self.async_show_form(
             step_id="user",

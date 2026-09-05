@@ -67,6 +67,9 @@ venv.bak/
 # Thumbnails
 ._*
 
+# Claude Code
+CLAUDE.md
+
 # Home Assistant
 .HA_VERSION
 *.log

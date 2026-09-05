@@ -1,0 +1,69 @@
+blueprint:
+  name: EdgeRouter Device Alert
+  description: >-
+    Send a notification when an EdgeRouter device event fires.
+
+
+    Alert types:
+
+    - Unknown device: active on network with no DHCP lease or static reservation.
+      Fires once per detection; resets when the device goes offline.
+
+    - New device first seen: a MAC address has never been tracked before.
+      Fires once per MAC ever (survives HA restarts). Most new devices will
+      get a DHCP lease within seconds — this is expected and lower priority.
+
+
+    Available in notification templates via trigger.event.data:
+    mac, ip, hostname, interface, connection_type (new device only),
+    ipv6_addrs (list of IPv6 addresses, if available),
+    unknown_ipv4, unknown_ipv6 (unknown device only).
+
+
+    Create one automation per alert type. Add multiple actions to notify
+    via several channels at once.
+  domain: automation
+  source_url: https://github.com/walljm/homeassistant-edgerouter/blob/main/blueprints/automation/edgerouter_device_alert.yaml
+  input:
+    event_type:
+      name: Alert type
+      description: Which event triggers this automation.
+      selector:
+        select:
+          options:
+            - label: "Unknown device — active on network with no DHCP lease or reservation"
+              value: edgerouter_unknown_device
+            - label: "New device — first time this MAC address has been seen"
+              value: edgerouter_new_device
+
+    notify_action:
+      name: Notification action
+      description: >-
+        Action(s) to run when the alert fires. Add multiple actions to notify via
+        several channels at once. Available in templates: trigger.event.data.mac,
+        .ip, .hostname, .interface — and alert_title (e.g. "Unknown Device Detected"
+        or "New Device Seen").
+      default:
+        - action: persistent_notification.create
+          data:
+            title: "{{ alert_title }}"
+            message: "{{ trigger.event.data.hostname }} ({{ trigger.event.data.ip }}) on {{ trigger.event.data.interface }}"
+      selector:
+        action: {}
+
+trigger:
+  - platform: event
+    event_type: !input event_type
+
+variables:
+  alert_title: >-
+    {% if trigger.event.event_type == 'edgerouter_unknown_device' %}
+    Unknown Device Detected
+    {% else %}
+    New Device Seen
+    {% endif %}
+
+action: !input notify_action
+
+mode: parallel
+max: 10

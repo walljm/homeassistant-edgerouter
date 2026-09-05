@@ -127,6 +127,31 @@ def test_dhcp_leases(api: EdgeRouterAPI) -> list:
         return []
 
 
+def test_dhcpv6_leases(api: EdgeRouterAPI) -> list:
+    """Test getting DHCPv6 leases."""
+    print_header("DHCPv6 Leases")
+    try:
+        leases = api.get_dhcpv6_leases()
+        rows = [
+            [
+                lease.get("addr") or "",
+                lease.get("mac") or "(no MAC — " + lease.get("duid_type", "?") + ")",
+                lease.get("vlan") or "",
+                lease.get("state") or "",
+                lease.get("ends") or "",
+            ]
+            for lease in leases
+        ]
+        print_table(["IPv6 Address", "MAC / DUID type", "VLAN", "State", "Ends"], rows)
+        print(f"\n  Total DHCPv6 leases: {len(leases)}")
+        return leases
+    except Exception as e:
+        print(f"  ❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
 def test_all_clients(api: EdgeRouterAPI) -> None:
     """Test getting all clients (combined ARP + DHCP)."""
     print_header("All Connected Clients")
@@ -134,7 +159,7 @@ def test_all_clients(api: EdgeRouterAPI) -> None:
         clients = api.get_all_clients()
 
         rows = []
-        for mac, client in sorted(clients.items(), key=lambda x: x[1].ip or ""):
+        for (mac, _iface), client in sorted(clients.items(), key=lambda x: x[1].ip or ""):
             status = []
             if client.in_arp:
                 status.append("ARP")
@@ -199,7 +224,7 @@ def test_home_assistant_devices(api: EdgeRouterAPI, host: str) -> None:
         print("\n  CLIENT DEVICES (Children - linked via router):")
         print("  " + "─" * 59)
 
-        for mac, client in sorted(clients.items(), key=lambda x: x[1].name):
+        for (mac, _iface), client in sorted(clients.items(), key=lambda x: x[1].name):
             device_name = client.name
             state = "home" if client.in_arp else "not_home"
             state_icon = "🏠" if client.in_arp else "🚪"
@@ -253,7 +278,10 @@ Examples:
     )
     parser.add_argument("host", help="EdgeRouter IP address or hostname")
     parser.add_argument("username", help="SSH username")
-    parser.add_argument("password", nargs="?", default=None, help="SSH password (will prompt if not provided)")
+    parser.add_argument("password", nargs="?", default=None, help="SSH password (will prompt if not provided and --key not given)")
+    parser.add_argument(
+        "--key", "-k", default=None, metavar="PATH", help="Path to SSH private key file (use instead of password)"
+    )
     parser.add_argument(
         "--port", "-p", type=int, default=22, help="SSH port (default: 22)"
     )
@@ -263,12 +291,11 @@ Examples:
 
     args = parser.parse_args()
 
-    # Prompt for password if not provided
+    # Resolve auth: key takes priority; prompt for password only if neither supplied
+    key_filename = args.key
     password = args.password
-    if password is None:
+    if not key_filename and password is None:
         password = getpass.getpass(f"Password for {args.username}@{args.host}: ")
-
-    args = parser.parse_args()
 
     print()
     print("╔══════════════════════════════════════════════════════════╗")
@@ -277,6 +304,7 @@ Examples:
     print()
     print(f"  Host:     {args.host}")
     print(f"  Username: {args.username}")
+    print(f"  Auth:     {'key: ' + key_filename if key_filename else 'password'}")
     print(f"  Port:     {args.port}")
     print(f"  Time:     {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
@@ -286,6 +314,7 @@ Examples:
         username=args.username,
         password=password,
         port=args.port,
+        key_filename=key_filename,
     )
 
     # Run tests
@@ -296,6 +325,7 @@ Examples:
     test_system_info(api)
     test_arp_table(api)
     test_dhcp_leases(api)
+    test_dhcpv6_leases(api)
     test_all_clients(api)
     test_home_assistant_devices(api, args.host)
 
